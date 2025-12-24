@@ -12,8 +12,7 @@ RUN npm install
 # Copy source code
 COPY . .
 
-# Build the frontend
-# Adjust if your build command is different
+# Build Polymer app
 RUN npm run build || gulp build
 
 # =========================
@@ -21,15 +20,14 @@ RUN npm run build || gulp build
 # =========================
 FROM nginx:alpine
 
-# Remove default nginx config
+# Remove default nginx default config
 RUN rm /etc/nginx/conf.d/default.conf
 
 # Custom nginx config
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# Copy built static files
-# ⚠️ Adjust "dist" if your output folder differs
-COPY --from=builder /app/dist /usr/share/nginx/html
+# Copy Polymer build output
+COPY --from=builder /app/build /usr/share/nginx/html
 
 EXPOSE 80
 
