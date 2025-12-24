@@ -1,0 +1,65 @@
+name: CI - Build, Push & Update Infra Repo
+
+"on":
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: write
+  packages: write
+
+env:
+  IMAGE_NAME: ghcr.io/berrouyne/shop-frontend
+  INFRA_REPO: berrouyne/shop-gitops
+  DEPLOYMENT_FILE: k8s/deployment.yaml
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    outputs:
+      image_tag: ${{ steps.vars.outputs.TAG }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set image tag
+        id: vars
+        run: echo "TAG=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+
+      - name: Build & push Docker image
+        run: |
+          docker build -t $IMAGE_NAME:${{ steps.vars.outputs.TAG }} .
+          docker push $IMAGE_NAME:${{ steps.vars.outputs.TAG }}
+
+  update-infra:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout infra repo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.INFRA_REPO }}
+          ref: main
+          token: ${{ secrets.GITOPS_PAT }}
+
+      - name: Update image in deployment
+        run: |
+          sed -i "s|image: ghcr.io/berrouyne/shop-frontend.*|image: $IMAGE_NAME:${{ needs.build-and-push.outputs.image_tag }}|g" $DEPLOYMENT_FILE
+
+      - name: Commit & push
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add $DEPLOYMENT_FILE
+          git commit -m "chore: update frontend image to ${{ needs.build-and-push.outputs.image_tag }}" || echo "No changes"
+          git push
