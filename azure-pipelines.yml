@@ -1,0 +1,18 @@
+trigger:
+- main
+
+pool:
+  name: VPS   # MUST match your agent pool name
+
+steps:
+- checkout: self
+
+- script: |
+    echo "Pipeline running on self-hosted VPS agent"
+    echo "User:"
+    whoami
+    echo "OS:"
+    uname -a
+    echo "Files in repo:"
+    ls -la
+  displayName: "Sanity check on VPS agent"
